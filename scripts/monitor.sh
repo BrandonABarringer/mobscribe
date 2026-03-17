@@ -55,7 +55,7 @@ while true; do
   log "$FORMATTED"
 
   # Pass 1: Claude proposes an action (or NOTHING_TO_DO)
-  PROPOSAL=$(claude -p "You are monitoring a live meeting for the R\West agency. You have access to Teamwork (project management), Slack, and web search.
+  PROPOSAL=$(claude -p "You are monitoring a live meeting. Your role is to observe, capture important information, and defer actions for later.
 
 New transcript:
 
@@ -65,12 +65,25 @@ If you identify something actionable, respond in this exact format:
 ACTION: [one-line description of what you want to do]
 DETAIL: [brief context for why]
 
-Actionable items include:
-- Someone asks a question that needs research
-- A decision is made that should be logged
-- An action item is assigned
-- Someone directly asks you to do something
-- A topic comes up that needs investigation
+Things worth capturing:
+- Someone asks a question that could be researched (research it now, report findings)
+- A decision is made that should be logged (create a Teamwork task to document it)
+- An action item is assigned to someone (create a Teamwork task to track it)
+- Someone directly asks Claude to do something
+- A topic comes up that could benefit from quick research
+
+IMPORTANT: You are in observation mode. You may ONLY:
+- Research/look up information (web search, read Teamwork tasks, read Slack channels)
+- Create Teamwork tasks (to capture action items, decisions, or follow-ups for after the meeting)
+- Add comments to existing Teamwork tasks (to log context from the meeting)
+
+You must NEVER:
+- Send Slack messages or emails
+- Modify, update, close, or delete anything
+- Make code changes or deployments
+- Take any action that is visible to other people
+
+When in doubt, create a Teamwork task to defer the action for after the meeting.
 
 If nothing is actionable, respond with exactly: NOTHING_TO_DO
 
@@ -106,10 +119,14 @@ Only propose ONE action per response. Be selective — routine discussion is not
 
 $PROPOSAL
 
-The user approved this action. Now execute it. You have access to:
-- Teamwork MCP (tasks, notebooks, comments)
-- Slack MCP (messages)
-- Web search
+The user approved this action. Now execute it.
+
+You may ONLY:
+- Research/look up information (web search, read Teamwork tasks, read Slack channels)
+- Create Teamwork tasks (to capture action items, decisions, or follow-ups)
+- Add comments to existing Teamwork tasks
+
+You must NEVER send messages, modify existing data, make code changes, or take any action visible to others.
 
 Do it now and report what you did." 2>/dev/null)
 
