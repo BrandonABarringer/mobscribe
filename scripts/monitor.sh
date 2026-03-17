@@ -82,6 +82,13 @@ Only propose ONE action per response. Be selective — routine discussion is not
     continue
   fi
 
+  # Skip API errors — don't surface these as proposals
+  if echo "$PROPOSAL" | grep -qi "API Error\|api_error\|Internal server error\|overloaded\|rate_limit"; then
+    log "Claude API error (skipping): $(echo "$PROPOSAL" | head -1)"
+    sleep "$INTERVAL"
+    continue
+  fi
+
   log "Proposed: $PROPOSAL"
 
   # Extract the action line for the dialog
@@ -106,10 +113,14 @@ The user approved this action. Now execute it. You have access to:
 
 Do it now and report what you did." 2>/dev/null)
 
-    log "EXECUTED: $RESULT"
-
-    # Notify completion
-    osascript -e "display notification \"$ACTION_LINE\" with title \"MobScribe\" subtitle \"Action completed\"" 2>/dev/null
+    # Check if execution hit an API error
+    if echo "$RESULT" | grep -qi "API Error\|api_error\|Internal server error\|overloaded\|rate_limit"; then
+      log "Execution failed (API error): $(echo "$RESULT" | head -1)"
+      osascript -e "display notification \"Action failed — API error. Will retry next cycle.\" with title \"MobScribe\"" 2>/dev/null
+    else
+      log "EXECUTED: $RESULT"
+      osascript -e "display notification \"$ACTION_LINE\" with title \"MobScribe\" subtitle \"Action completed\"" 2>/dev/null
+    fi
   else
     log "DENIED: $ACTION_LINE"
   fi
