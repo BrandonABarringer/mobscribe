@@ -20,11 +20,13 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 	const server = new McpServer({
 		name: "mobscribe",
 		version: "2.0.0",
+		description:
+			"Meeting recorder and transcription service. Records meetings via microphone, transcribes in real-time with speaker labels, auto-generates summaries, and lets you search and query past meetings.",
 	});
 
 	server.tool(
 		"transcript_get_new",
-		"Get new transcript text since the last read. Returns only segments added after the given cursor. Use cursor -1 on first call to get everything.",
+		"Get new transcript text from the current meeting since the last read. Returns only segments added after the given cursor. Use cursor -1 on first call to get everything.",
 		{
 			cursor: z.coerce
 				.number()
@@ -68,7 +70,7 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 
 	server.tool(
 		"transcript_get_full",
-		"Get the complete transcript from the current session. Use sparingly — prefer transcript_get_new for incremental reads.",
+		"Get the complete transcript from the meeting currently being recorded. Use sparingly — prefer transcript_get_new for incremental reads.",
 		{},
 		async () => {
 			const transcript = buffer.getFullTranscriptWithTimestamps();
@@ -92,7 +94,7 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 
 	server.tool(
 		"transcript_get_recent",
-		"Get the most recent transcript segments. Useful for quick context without reading the full transcript.",
+		"Get the most recent transcript segments from the meeting being recorded. Useful for quick context without reading the full transcript.",
 		{
 			count: z.coerce.number().default(10).describe("Number of recent segments to return"),
 		},
@@ -118,7 +120,7 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 
 	server.tool(
 		"transcript_status",
-		"Get the current status of the transcription session.",
+		"Check if a meeting is currently being recorded and how many transcript segments have been captured.",
 		{},
 		async () => {
 			return {
@@ -134,18 +136,21 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 
 	server.tool(
 		"session_start",
-		"Start a new transcription session.",
+		"Start recording a meeting. Captures audio from the microphone, transcribes speech in real-time with speaker labels, and saves everything when stopped. Use this when the user wants to record, transcribe, or capture a meeting or conversation.",
 		{
-			name: z.string().default("Session").describe("Session name"),
+			name: z
+				.string()
+				.default("Session")
+				.describe("Meeting or session name (e.g. 'Sprint Planning', 'Client Check-in')"),
 			project: z
 				.string()
 				.optional()
-				.describe("Project name for context (e.g. 'Clearwater', 'F&A', 'R/West Website')"),
+				.describe("Project or client name for organization (e.g. 'Clearwater', 'Gaming Builder')"),
 			context: z
 				.string()
 				.optional()
 				.describe(
-					"Additional context for the meeting agent (e.g. key people, topics to watch for)",
+					"Additional context about the meeting (e.g. attendees, topics to watch for, goals)",
 				),
 		},
 		async ({ name, project, context: meetingContext }) => {
@@ -167,29 +172,34 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 		},
 	);
 
-	server.tool("session_stop", "Stop the current transcription session.", {}, async () => {
-		if (options.onStopSession) {
-			const savedPath = await options.onStopSession();
-			const saveMsg = savedPath ? ` Meeting saved to ${savedPath}` : "";
+	server.tool(
+		"session_stop",
+		"Stop recording the current meeting. Saves the transcript and generates an AI summary with topics, decisions, and action items to ~/meetings/.",
+		{},
+		async () => {
+			if (options.onStopSession) {
+				const savedPath = await options.onStopSession();
+				const saveMsg = savedPath ? ` Meeting saved to ${savedPath}` : "";
+				return {
+					content: [
+						{
+							type: "text",
+							text: `Session stopped. Final transcript has ${buffer.length} segments.${saveMsg}`,
+						},
+					],
+				};
+			}
 			return {
-				content: [
-					{
-						type: "text",
-						text: `Session stopped. Final transcript has ${buffer.length} segments.${saveMsg}`,
-					},
-				],
+				content: [{ type: "text", text: "Session stop not configured." }],
+				isError: true,
 			};
-		}
-		return {
-			content: [{ type: "text", text: "Session stop not configured." }],
-			isError: true,
-		};
-	});
+		},
+	);
 
 	// Meeting query tools
 	server.tool(
 		"meeting_list",
-		"List all past meetings with metadata. Returns meetings sorted by date (most recent first).",
+		"List previously recorded meetings. Returns meetings sorted by date (most recent first). Use this when the user asks about past meetings, what was discussed recently, or wants to find a specific meeting.",
 		{
 			dateFrom: z
 				.string()
@@ -242,7 +252,7 @@ export function createMcpServer(options: MobScribeMcpOptions): McpServer {
 
 	server.tool(
 		"meeting_search",
-		"Search across all meetings for keywords. Searches summaries, topics, decisions, and action items.",
+		"Search across all previously recorded meetings by keyword. Searches summaries, topics, decisions, and action items. Use this when the user asks things like 'what did we discuss about X' or 'find meetings about Y'.",
 		{
 			query: z.string().describe("Search query (keyword or phrase)"),
 		},
