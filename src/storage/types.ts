@@ -16,6 +16,8 @@ export interface KeyMoment {
 }
 
 export interface MeetingSummary {
+	suggestedName?: string;
+	suggestedProject?: string;
 	overview: string;
 	topics: string[];
 	decisions: string[];

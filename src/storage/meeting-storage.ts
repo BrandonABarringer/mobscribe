@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -89,6 +96,8 @@ ${transcript}
 
 Generate a JSON object with this exact structure:
 {
+  "suggestedName": "Short descriptive name for this meeting based on what was discussed (e.g. 'Gaming Builder Dashboard Handoff', 'Clearwater Sprint Planning')",
+  "suggestedProject": "Project or client name if identifiable from the conversation, or null if unclear",
   "overview": "1-2 sentence overview of the meeting",
   "topics": ["topic 1", "topic 2", "..."],
   "decisions": ["decision 1", "decision 2", "..."],
@@ -197,12 +206,34 @@ export async function saveMeeting(options: SaveMeetingOptions): Promise<string> 
 	console.error("[meeting-storage] Generating summary with Claude CLI...");
 	const summary = await generateSummary(options);
 
+	let finalMeetingDir = meetingDir;
+
 	if (summary) {
 		writeFileSync(join(meetingDir, "summary.json"), JSON.stringify(summary, null, 2));
 		console.error("[meeting-storage] Summary generated successfully");
+
+		// If the summary suggested a better name, rename the meeting
+		if (summary.suggestedName) {
+			const newId = generateMeetingId(summary.suggestedName, options.startTime);
+			const newDir = join(MEETINGS_DIR, newId);
+
+			// Only rename if the new ID is different and doesn't conflict
+			if (newDir !== meetingDir && !existsSync(newDir)) {
+				// Update metadata with the suggested name and project
+				metadata.name = summary.suggestedName;
+				metadata.id = newId;
+				if (summary.suggestedProject && !metadata.project) {
+					metadata.project = summary.suggestedProject;
+				}
+				writeFileSync(join(meetingDir, "metadata.json"), JSON.stringify(metadata, null, 2));
+
+				renameSync(meetingDir, newDir);
+				finalMeetingDir = newDir;
+				console.error(`[meeting-storage] Renamed to: ${newId}`);
+			}
+		}
 	} else {
 		console.error("[meeting-storage] Failed to generate summary - saving meeting without it");
-		// Save empty summary as placeholder
 		const emptySummary: MeetingSummary = {
 			overview: "Summary generation failed",
 			topics: [],
@@ -213,7 +244,7 @@ export async function saveMeeting(options: SaveMeetingOptions): Promise<string> 
 		writeFileSync(join(meetingDir, "summary.json"), JSON.stringify(emptySummary, null, 2));
 	}
 
-	return meetingDir;
+	return finalMeetingDir;
 }
 
 /**
