@@ -22,7 +22,7 @@
 		]
 	},
 	"keywords": [],
-	"author": "R\\West",
+	"author": "Brandon Barringer",
 	"license": "ISC",
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.27.1",
