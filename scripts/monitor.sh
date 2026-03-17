@@ -136,7 +136,17 @@ Do it now and report what you did." 2>/dev/null)
       osascript -e "display notification \"Action failed — API error. Will retry next cycle.\" with title \"MobScribe\"" 2>/dev/null
     else
       log "EXECUTED: $RESULT"
-      osascript -e "display notification \"$ACTION_LINE\" with title \"MobScribe\" subtitle \"Action completed\"" 2>/dev/null
+
+      # Write finding to transcript JSONL so the main Claude session can read it
+      if [ -f "$TRANSCRIPT_FILE" ]; then
+        TIMESTAMP=$(python3 -c "import time; print(int(time.time() * 1000))")
+        ESCAPED_RESULT=$(echo "$RESULT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip()))")
+        echo "{\"text\":$ESCAPED_RESULT,\"timestamp\":$TIMESTAMP,\"index\":-1,\"speaker\":\"CLAUDE\",\"type\":\"finding\"}" >> "$TRANSCRIPT_FILE"
+      fi
+
+      # Truncate result for notification (macOS has char limits)
+      SHORT_RESULT=$(echo "$RESULT" | head -3 | cut -c1-150)
+      osascript -e "display notification \"$SHORT_RESULT\" with title \"MobScribe\" subtitle \"$ACTION_LINE\"" 2>/dev/null
     fi
   else
     log "DENIED: $ACTION_LINE"
