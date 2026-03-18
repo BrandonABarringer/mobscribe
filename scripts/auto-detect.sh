@@ -14,7 +14,7 @@
 
 POLL_INTERVAL=${1:-10}
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEBOUNCE_SECONDS=15
+DEBOUNCE_SECONDS=5
 COOLDOWN_SECONDS=30
 
 # State
@@ -103,12 +103,25 @@ prompt_record() {
   fi
 }
 
-# Start MobScribe recording via Claude MCP
+# Start MobScribe recording directly via Node
 start_recording() {
   local name="$1"
   log "Starting recording: $name"
 
-  claude --model sonnet -p "Call the mobscribe session_start tool with name '$name'. Return ONLY the raw tool result, nothing else." > /dev/null 2>&1 &
+  MOBSCRIBE_DIR="$SCRIPT_DIR/.."
+
+  # Load .env for AssemblyAI key
+  if [ -f "$MOBSCRIBE_DIR/.env" ]; then
+    export $(grep -v '^#' "$MOBSCRIBE_DIR/.env" | xargs)
+  fi
+
+  # Start recorder process in background — stays alive until SIGTERM
+  node "$MOBSCRIBE_DIR/dist/record.js" --name "$name" &
+  RECORDER_PID=$!
+  log "Recorder started (PID: $RECORDER_PID)"
+
+  # Give it a moment to connect before starting the monitor
+  sleep 3
 
   # Start the monitor script in the background
   bash "$SCRIPT_DIR/monitor.sh" 30 &
@@ -129,8 +142,15 @@ stop_recording() {
   fi
   MONITOR_PID=""
 
-  # Stop session — this triggers auto-save + summary generation + rename
-  claude --model sonnet -p "Call the mobscribe session_stop tool. Return ONLY the raw tool result, nothing else." > /dev/null 2>&1 &
+  # Send SIGTERM to recorder — triggers save + summary generation
+  if [ -n "$RECORDER_PID" ] && kill -0 "$RECORDER_PID" 2>/dev/null; then
+    kill "$RECORDER_PID"
+    log "Recorder stopping (saving meeting and generating summary)..."
+    # Wait for it to finish saving
+    wait "$RECORDER_PID" 2>/dev/null
+    log "Recorder stopped"
+  fi
+  RECORDER_PID=""
 
   osascript -e "display notification \"Recording saved. Summary generating...\" with title \"MobScribe\"" 2>/dev/null
 

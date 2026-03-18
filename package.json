@@ -7,6 +7,7 @@
 		"build": "tsc",
 		"dev": "node --loader ts-node/esm src/index.ts",
 		"start": "node dist/index.js",
+		"record": "node dist/record.js",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"check": "biome check --write .",

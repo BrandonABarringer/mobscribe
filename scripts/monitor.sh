@@ -55,7 +55,7 @@ while true; do
   log "$FORMATTED"
 
   # Pass 1: Claude proposes an action (or NOTHING_TO_DO)
-  PROPOSAL=$(claude -p "You are monitoring a live meeting. Your role is to observe, capture important information, and defer actions for later.
+  PROPOSAL=$(claude --permission-mode auto -p "You are monitoring a live meeting. Your role is to observe, capture important information, and defer actions for later.
 
 New transcript:
 
@@ -115,7 +115,7 @@ Only propose ONE action per response. Be selective — routine discussion is not
     log "APPROVED: $ACTION_LINE"
 
     # Pass 3: Execute the approved action
-    RESULT=$(claude -p "You previously proposed this action based on a meeting transcript:
+    RESULT=$(claude --permission-mode auto -p "You previously proposed this action based on a meeting transcript:
 
 $PROPOSAL
 
