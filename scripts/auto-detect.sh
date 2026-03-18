@@ -12,9 +12,9 @@
 #
 # Meeting names are auto-generated from the transcript summary after recording.
 
-POLL_INTERVAL=${1:-10}
+POLL_INTERVAL=${1:-5}
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEBOUNCE_SECONDS=5
+DEBOUNCE_SECONDS=2
 COOLDOWN_SECONDS=30
 
 # State

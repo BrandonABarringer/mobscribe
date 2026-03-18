@@ -1,0 +1,23 @@
+{
+	"permissions": {
+		"deny": [
+			"Skill(do-teamwork-task)",
+			"Skill(task-orchestrator)",
+			"Skill(onboarding)",
+			"Skill(feed-validator)",
+			"Skill(linkedin-content-generator)",
+			"Skill(google-docs-markdown)",
+			"Skill(site-audit)",
+			"Skill(review-pr)",
+			"Skill(commit)",
+			"Skill(rwest-commit)",
+			"Skill(rwest-push-pr)",
+			"Skill(create-tasks)",
+			"Skill(execute-task)",
+			"Skill(validate-tasks)",
+			"Skill(skill-creator)",
+			"Skill(figma-web-patterns)",
+			"Skill(feature-dev)"
+		]
+	}
+}
