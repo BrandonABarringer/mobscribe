@@ -60,7 +60,9 @@ export class StreamingClient {
 			sampleRate: this.sampleRate,
 			speechModel: "u3-rt-pro",
 			formatTurns: true,
-			speakerLabels: true,
+			// TODO: Re-enable speaker labels when on a paid plan.
+			// Speaker diarization doubles AssemblyAI usage hours.
+			// speakerLabels: true,
 		});
 
 		this.transcriber.on("open", ({ id }) => {
