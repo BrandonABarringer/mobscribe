@@ -30,15 +30,24 @@ log() {
 
 # Detect conferencing UDP connections and return the app name
 detect_meeting() {
+  # Check standard conferencing ports (Zoom, Teams, generic WebRTC/STUN)
   local pids
   pids=$(lsof -ti UDP:3478-3481,8801-8810 2>/dev/null | sort -u)
 
-  if [ -z "$pids" ]; then
+  # Also check for Slack huddles — they use UDP:443 (QUIC/WebRTC)
+  local slack_udp_pids
+  slack_udp_pids=$(lsof -i UDP:443 -P 2>/dev/null | grep -i slack | awk '{print $2}' | sort -u)
+
+  # Combine all PIDs
+  local all_pids
+  all_pids=$(echo "$pids $slack_udp_pids" | tr ' ' '\n' | grep -v '^$' | sort -u)
+
+  if [ -z "$all_pids" ]; then
     echo ""
     return 1
   fi
 
-  for pid in $pids; do
+  for pid in $all_pids; do
     local app_path
     app_path=$(ps -p "$pid" -o comm= 2>/dev/null)
 
