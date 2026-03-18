@@ -20,9 +20,11 @@ COOLDOWN_SECONDS=30
 # State
 MEETING_ACTIVE=false
 MEETING_SKIPPED=false
+MEETING_MODE=""  # "record" or "monitor"
 DETECTION_START=0
 LAST_MEETING_END=0
 MONITOR_PID=""
+RECORDER_PID=""
 
 log() {
   echo "[$(date +%H:%M:%S)] $1"
@@ -31,16 +33,11 @@ log() {
 # Detect conferencing UDP connections and return the app name
 detect_meeting() {
   # Check standard conferencing ports (Zoom, Teams, generic WebRTC/STUN)
-  local pids
-  pids=$(lsof -ti UDP:3478-3481,8801-8810 2>/dev/null | sort -u)
-
-  # Also check for Slack huddles — they use UDP:443 (QUIC/WebRTC)
-  local slack_udp_pids
-  slack_udp_pids=$(lsof -i UDP:443 -P 2>/dev/null | grep -i slack | awk '{print $2}' | sort -u)
-
-  # Combine all PIDs
+  # Note: Slack huddles use UDP:443 but so does regular Slack messaging,
+  # causing false positives. Slack detection disabled until we find a
+  # reliable signal. TODO: investigate Slack audio process or connection count.
   local all_pids
-  all_pids=$(echo "$pids $slack_udp_pids" | tr ' ' '\n' | grep -v '^$' | sort -u)
+  all_pids=$(lsof -ti UDP:3478-3481,8801-8810 2>/dev/null | sort -u)
 
   if [ -z "$all_pids" ]; then
     echo ""
@@ -90,6 +87,7 @@ default_name() {
 }
 
 # Prompt user to start recording
+# Sets MEETING_MODE to "record" or "monitor", or returns 1 for skip
 prompt_record() {
   local app="$1"
   local app_label=""
@@ -102,12 +100,17 @@ prompt_record() {
 
   local result
   result=$(osascript -e "
-    display dialog \"$app_label detected. Start recording?\" & return & return & \"The meeting will be named automatically from the conversation.\" with title \"MobScribe\" buttons {\"Skip\", \"Record\"} default button \"Record\" giving up after 30
+    display dialog \"$app_label detected.\" & return & return & \"Record: transcript + summary only\" & return & \"Record + Monitor: also proposes actions during meeting\" with title \"MobScribe\" buttons {\"Skip\", \"Record\", \"Record + Monitor\"} default button \"Record\" giving up after 30
   " 2>&1)
 
-  if echo "$result" | grep -q "Record"; then
+  if echo "$result" | grep -q "Record + Monitor"; then
+    MEETING_MODE="monitor"
+    return 0
+  elif echo "$result" | grep -q "Record"; then
+    MEETING_MODE="record"
     return 0
   else
+    MEETING_MODE=""
     return 1
   fi
 }
@@ -115,7 +118,7 @@ prompt_record() {
 # Start MobScribe recording directly via Node
 start_recording() {
   local name="$1"
-  log "Starting recording: $name"
+  log "Starting recording ($MEETING_MODE): $name"
 
   MOBSCRIBE_DIR="$SCRIPT_DIR/.."
 
@@ -129,15 +132,16 @@ start_recording() {
   RECORDER_PID=$!
   log "Recorder started (PID: $RECORDER_PID)"
 
-  # Give it a moment to connect before starting the monitor
-  sleep 3
-
-  # Start the monitor script in the background
-  bash "$SCRIPT_DIR/monitor.sh" 30 &
-  MONITOR_PID=$!
-  log "Monitor started (PID: $MONITOR_PID)"
-
-  osascript -e "display notification \"Recording started\" with title \"MobScribe\" subtitle \"$name\"" 2>/dev/null
+  # Start the monitor only if in monitor mode
+  if [ "$MEETING_MODE" = "monitor" ]; then
+    sleep 3
+    bash "$SCRIPT_DIR/monitor.sh" 30 &
+    MONITOR_PID=$!
+    log "Monitor started (PID: $MONITOR_PID)"
+    osascript -e "display notification \"Recording + Monitor started\" with title \"MobScribe\" subtitle \"$name\"" 2>/dev/null
+  else
+    osascript -e "display notification \"Recording started\" with title \"MobScribe\" subtitle \"$name\"" 2>/dev/null
+  fi
 }
 
 # Stop MobScribe recording
@@ -215,6 +219,7 @@ while true; do
     if [ "$MEETING_ACTIVE" = true ]; then
       stop_recording
       MEETING_ACTIVE=false
+      MEETING_MODE=""
     fi
 
     MEETING_SKIPPED=false
